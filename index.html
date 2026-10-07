@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DOTA2 Ability & Hero Quiz</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts & FontAwesome Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            cinzel: ['Cinzel', 'serif'],
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            dota: {
+              red: '#C83535',
+              darkRed: '#8B0000',
+              gold: '#D4AF37',
+              goldHover: '#F3E5AB',
+              darkBg: '#0D0E12',
+              cardBg: '#171A21',
+              panelBg: '#212631',
+              border: '#2E3544',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      background: radial-gradient(circle at center, #1a1f29 0%, #0d0e12 100%);
+      min-height: 100vh;
+      color: #e2e8f0;
+      user-select: none;
+    }
+
+    .dota-card {
+      background: linear-gradient(145deg, #181c24, #12151b);
+      border: 1px solid rgba(212, 175, 55, 0.2);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    }
+
+    .gold-gradient-text {
+      background: linear-gradient(135deg, #FFF099 0%, #D4AF37 50%, #AA7A1E 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .mode-tab {
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+    }
+
+    .mode-tab.active {
+      background: linear-gradient(180deg, #2a3242 0%, #1f2430 100%);
+      border-color: #d4af37;
+      color: #d4af37;
+      box-shadow: 0 0 12px rgba(212, 175, 55, 0.2);
+    }
+
+    /* Custom scrollbar for autocomplete list */
+    #autocomplete-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    #autocomplete-list::-webkit-scrollbar-track {
+      background: #171A21;
+      border-radius: 0 8px 8px 0;
+    }
+    #autocomplete-list::-webkit-scrollbar-thumb {
+      background: #2E3544;
+      border-radius: 4px;
+    }
+    #autocomplete-list::-webkit-scrollbar-thumb:hover {
+      background: #D4AF37;
+    }
+  </style>
+</head>
+<body class="flex flex-col min-h-screen justify-between font-sans antialiased">
+
+  <!-- Header -->
+  <header class="w-full bg-dota-card/80 backdrop-blur-md border-b border-dota-border px-4 py-3 sticky top-0 z-50">
+    <div class="max-w-5xl mx-auto flex justify-between items-center">
+      <div class="flex items-center space-x-3">
+       <img src="images/logo.png" alt="Logo" class="w-7 h-7 object-contain">
+        <h1 class="font-cinzel text-xl md:text-2xl font-bold tracking-wider gold-gradient-text">dota.guess</h1>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <!-- Sound Toggle Button -->
+        <button id="sound-toggle" class="text-gray-400 hover:text-dota-gold transition-colors p-2 rounded-lg bg-dota-panelBg/50 border border-dota-border" title="Toggle Sound">
+          <i id="sound-icon" class="fa-solid fa-volume-high"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main View -->
+  <main class="flex-grow flex items-center justify-center p-4">
+    <div class="w-full max-w-2xl">
+
+      <!-- Loader Screen -->
+      <div id="loader-screen" class="dota-card rounded-2xl p-8 text-center my-8">
+        <div class="inline-block p-4 rounded-full bg-dota-panelBg/50 border border-dota-border mb-4 animate-spin">
+          <i class="fa-solid fa-spinner text-4xl text-dota-gold"></i>
+        </div>
+        <h2 class="font-cinzel text-2xl font-bold text-gray-200 mb-2">Connecting to Ancients...</h2>
+        <p class="text-gray-400 text-sm max-w-md mx-auto">Loading embedded ability database...</p>
+      </div>
+
+      <!-- Error Screen -->
+      <div id="error-screen" class="hidden dota-card rounded-2xl p-8 text-center my-8 border-dota-red">
+        <i class="fa-solid fa-triangle-exclamation text-5xl text-dota-red mb-4"></i>
+        <h2 class="font-cinzel text-2xl font-bold text-gray-200 mb-2">Failed to Load Abilities</h2>
+        <p id="error-message" class="text-gray-400 text-sm mb-6">Database array is empty or corrupt.</p>
+        <button onclick="initQuiz()" class="px-6 py-2.5 rounded-lg bg-dota-red hover:bg-dota-darkRed text-white font-semibold transition-colors">
+          <i class="fa-solid fa-rotate-right mr-2"></i>Retry
+        </button>
+      </div>
+
+      <!-- Game Container -->
+      <div id="game-container" class="hidden space-y-6">
+
+        <!-- Hard Mode Toggle -->
+        <div class="flex justify-end">
+          <button id="hardmode-toggle" class="px-3 py-1.5 bg-dota-panelBg border border-dota-border hover:border-dota-gold/50 rounded-lg flex items-center gap-2 text-xs font-semibold transition-all">
+            <i id="hardmode-icon" class="fa-solid fa-eye text-gray-500"></i>
+            <span id="hardmode-label" class="text-gray-300">Hard Mode: OFF</span>
+          </button>
+        </div>
+
+        <!-- Mode Selector Switcher -->
+        <div class="grid grid-cols-3 gap-2 p-1.5 bg-dota-panelBg/80 border border-dota-border rounded-xl">
+          <button id="mode-hero-btn" onclick="switchGameMode('hero')" class="mode-tab active py-2.5 px-3 rounded-lg font-cinzel font-bold text-xs md:text-sm flex items-center justify-center gap-1.5 text-gray-300">
+            <i class="fa-solid fa-user"></i>
+            <span>Heroes</span>
+          </button>
+          <button id="mode-ability-btn" onclick="switchGameMode('ability')" class="mode-tab py-2.5 px-3 rounded-lg font-cinzel font-bold text-xs md:text-sm flex items-center justify-center gap-1.5 text-gray-300">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span>Abilities</span>
+          </button>
+          <button id="mode-special-btn" onclick="switchGameMode('special')" class="mode-tab py-2.5 px-3 rounded-lg font-cinzel font-bold text-xs md:text-sm flex items-center justify-center gap-1.5 text-gray-300">
+            <i class="fa-solid fa-dragon"></i>
+            <span>Creeps & Specials</span>
+          </button>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="grid grid-cols-3 gap-3 md:gap-4 text-center">
+          <div class="dota-card rounded-xl p-3 border-dota-border">
+            <span class="block text-xs uppercase tracking-wider text-gray-400 font-semibold mb-1">Score</span>
+            <span id="score-val" class="font-cinzel text-2xl md:text-3xl font-bold text-dota-gold">0</span>
+          </div>
+          <div class="dota-card rounded-xl p-3 border-dota-border">
+            <span class="block text-xs uppercase tracking-wider text-gray-400 font-semibold mb-1">Current Streak</span>
+            <span id="streak-val" class="font-cinzel text-2xl md:text-3xl font-bold text-emerald-400">0 🔥</span>
+          </div>
+          <div class="dota-card rounded-xl p-3 border-dota-border">
+            <span class="block text-xs uppercase tracking-wider text-gray-400 font-semibold mb-1">Best Streak</span>
+            <span id="best-streak-val" class="font-cinzel text-2xl md:text-3xl font-bold text-amber-400">0</span>
+          </div>
+        </div>
+
+        <!-- Question Box -->
+        <div class="dota-card rounded-2xl p-6 md:p-8 relative">
+          <div class="flex justify-between items-center mb-6 border-b border-dota-border/50 pb-4">
+            <span id="mode-badge" class="text-xs uppercase font-bold tracking-widest text-dota-gold bg-dota-gold/10 px-3 py-1 rounded-full border border-dota-gold/20">
+              <i class="fa-solid fa-user mr-1"></i> Guess the Hero
+            </span>
+            <span id="question-counter" class="text-xs text-gray-400 font-medium">Question #1</span>
+          </div>
+
+          <!-- Ability Icon Display -->
+          <div class="flex flex-col items-center justify-center my-4">
+            <div class="relative group">
+              <div class="absolute -inset-1 bg-gradient-to-r from-dota-gold to-dota-red rounded-xl blur opacity-30 group-hover:opacity-70 transition duration-500"></div>
+              <div class="relative bg-black rounded-xl p-1.5 border-2 border-dota-gold/60 shadow-2xl overflow-hidden">
+                <img
+                  id="ability-icon"
+                  src=""
+                  alt="Ability Icon"
+                  class="w-28 h-28 md:w-36 md:h-36 object-cover rounded-lg transition-transform duration-300 transform group-hover:scale-105"
+                  onerror="handleImageError(this)"
+                />
+              </div>
+            </div>
+            <p id="prompt-instruction" class="text-gray-400 text-sm mt-4 font-medium text-center">
+              Type the name of the hero who owns this ability:
+            </p>
+          </div>
+
+          <!-- Search & Input Box Section -->
+          <div class="relative mt-6 max-w-lg mx-auto z-30">
+            <div class="flex items-center gap-2">
+              <div class="relative flex-grow">
+                <input
+                  type="text"
+                  id="guess-input"
+                  placeholder="e.g. Pudge"
+                  autocomplete="off"
+                  class="w-full bg-dota-panelBg border border-dota-border rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-dota-gold transition-colors font-medium text-sm"
+                />
+                <!-- Autocomplete Dropdown -->
+                <div id="autocomplete-list" class="hidden absolute left-0 right-0 top-full mt-2 bg-dota-card border border-dota-border rounded-xl shadow-2xl max-h-60 overflow-y-auto z-50 pointer-events-auto divide-y divide-dota-border/50"></div>
+              </div>
+
+              <!-- Action Button (Submit or Skip) -->
+              <button
+                id="submit-btn"
+                onclick="handleActionClick()"
+                class="px-5 py-3 rounded-xl font-cinzel font-bold text-sm bg-dota-gold text-black hover:bg-dota-goldHover transition-all shadow-lg flex items-center gap-1 shrink-0"
+              >
+                <span id="submit-btn-label">Skip</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Feedback & Next Action Footer -->
+          <div id="feedback-panel" class="mt-6 pt-4 border-t border-dota-border/50 flex flex-col md:flex-row justify-between items-center min-h-[50px] gap-4">
+            <div id="feedback-message" class="text-sm font-semibold flex items-center space-x-2"></div>
+
+            <button
+              id="next-btn"
+              onclick="nextQuestion()"
+              disabled
+              class="w-full md:w-auto px-6 py-2.5 rounded-xl font-cinzel font-bold text-sm bg-dota-gold text-black hover:bg-dota-goldHover disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-lg flex items-center justify-center space-x-2"
+            >
+              <span>Next Ability</span>
+              <i class="fa-solid fa-arrow-right text-xs"></i>
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="w-full py-4 text-center text-xs text-gray-500 border-t border-dota-border/40 bg-dota-darkBg">
+    <p>Assets powered by Steam Cloud CDN. Dota 2 is a registered trademark of Valve Corporation.</p>
+  </footer>
+
+  <!-- Application Logic -->
+  <script>
+    let fullDataset = [];
+    let heroOptions = [];
+    let currentGameMode = 'hero';
+    let score = 0;
+    let currentStreak = 0;
+    let bestStreak = 0;
+    let soundEnabled = true;
+    let hardModeEnabled = false;
+    let audioCtx = null;
+
+    // Separate session state map for each category mode
+    const modeSessions = {
+      hero: {
+        abilityList: [],
+        options: [],
+        currentQuestion: null,
+        isAnswered: false,
+        questionNumber: 0,
+        inputValue: '',
+        feedbackHtml: '',
+        hardTransformFilter: '',
+        hardTransformMatrix: ''
+      },
+      ability: {
+        abilityList: [],
+        options: [],
+        currentQuestion: null,
+        isAnswered: false,
+        questionNumber: 0,
+        inputValue: '',
+        feedbackHtml: '',
+        hardTransformFilter: '',
+        hardTransformMatrix: ''
+      },
+      special: {
+        abilityList: [],
+        options: [],
+        currentQuestion: null,
+        isAnswered: false,
+        questionNumber: 0,
+        inputValue: '',
+        feedbackHtml: '',
+        hardTransformFilter: '',
+        hardTransformMatrix: ''
+      }
+    };
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playSound(type) {
+      if (!soundEnabled) return;
+      try {
+        initAudio();
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume();
+        }
+
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'correct') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(523.25, now);
+          osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.1);
+          osc.frequency.exponentialRampToValueAtTime(783.99, now + 0.2);
+
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+
+          osc.start(now);
+          osc.stop(now + 0.35);
+        } else if (type === 'wrong') {
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(160, now);
+          osc.frequency.linearRampToValueAtTime(100, now + 0.25);
+
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+
+          osc.start(now);
+          osc.stop(now + 0.25);
+        } else if (type === 'click') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(400, now);
+          osc.frequency.exponentialRampToValueAtTime(200, now + 0.05);
+
+          gain.gain.setValueAtTime(0.05, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+          osc.start(now);
+          osc.stop(now + 0.05);
+        }
+      } catch (e) {
+        console.warn('Audio error:', e);
+      }
+    }
+
+    document.getElementById('sound-toggle').addEventListener('click', () => {
+      soundEnabled = !soundEnabled;
+      const icon = document.getElementById('sound-icon');
+      if (soundEnabled) {
+        icon.className = 'fa-solid fa-volume-high text-dota-gold';
+      } else {
+        icon.className = 'fa-solid fa-volume-xmark text-gray-500';
+      }
+    });
+
+    const hardModeBtn = document.getElementById('hardmode-toggle');
+    if (hardModeBtn) {
+      hardModeBtn.addEventListener('click', () => {
+        hardModeEnabled = !hardModeEnabled;
+        playSound('click');
+
+        const icon = document.getElementById('hardmode-icon');
+        const label = document.getElementById('hardmode-label');
+
+        if (hardModeEnabled) {
+          icon.className = 'fa-solid fa-eye-slash text-red-500';
+          label.className = 'text-red-400 font-bold';
+          label.innerText = 'Hard Mode: ON';
+        } else {
+          icon.className = 'fa-solid fa-eye text-gray-500';
+          label.className = 'text-gray-300';
+          label.innerText = 'Hard Mode: OFF';
+        }
+
+        applyImageTransformations();
+      });
+    }
+
+    function formatKeyToName(key) {
+      if (!key) return '';
+      return key
+        .replace(/^npc_dota_neutral_/, '')
+        .replace(/^npc_dota_creep_/, '')
+        .replace(/^npc_dota_/, '')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, char => char.toUpperCase());
+    }
+
+    function isGenericUnitName(name) {
+      if (!name) return true;
+      const lower = name.toLowerCase().trim();
+      return lower.includes('creep / neutral') || lower === 'creep' || lower === 'neutral creep' || lower === 'special' || lower === 'creep / neutral / special';
+    }
+
+    async function initQuiz() {
+      document.getElementById('loader-screen').classList.remove('hidden');
+      document.getElementById('error-screen').classList.add('hidden');
+      document.getElementById('game-container').classList.add('hidden');
+
+      try {
+        const response = await fetch('./abilities_local.json');
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const jsonContent = await response.json();
+
+        fullDataset = jsonContent.map(item => {
+          let resolvedHero = item.hero || item.unit || item.creep || '';
+
+          if (isGenericUnitName(resolvedHero) && item.key) {
+            const derived = formatKeyToName(item.key);
+            if (derived) resolvedHero = derived;
+          }
+
+          return {
+            key: item.key,
+            abilityName: item.ability,
+            heroName: resolvedHero,
+            category: item.category || 'hero',
+            iconUrl: item.iconUrl
+          };
+        });
+
+        if (fullDataset.length === 0) {
+          throw new Error('Dataset is empty');
+        }
+
+        const heroEntries = fullDataset.filter(item => item.category === 'hero');
+        heroOptions = Array.from(new Set(heroEntries.map(item => item.heroName))).filter(Boolean);
+
+        // Pre-build lists for each session
+        modeSessions.hero.abilityList = fullDataset.filter(item => item.category === 'hero');
+        modeSessions.hero.options = heroOptions;
+
+        modeSessions.ability.abilityList = fullDataset.filter(item => item.category === 'hero');
+        modeSessions.ability.options = Array.from(new Set(modeSessions.ability.abilityList.map(item => item.abilityName)));
+
+        modeSessions.special.abilityList = fullDataset.filter(item => item.category === 'special' && !heroOptions.includes(item.heroName));
+        const validUnits = modeSessions.special.abilityList
+          .map(item => item.heroName)
+          .filter(name => !isGenericUnitName(name) && !heroOptions.includes(name));
+        const validAbilities = modeSessions.special.abilityList.map(item => item.abilityName);
+        modeSessions.special.options = Array.from(new Set([...validUnits, ...validAbilities]));
+
+        switchGameMode('hero', true);
+
+        document.getElementById('loader-screen').classList.add('hidden');
+        document.getElementById('game-container').classList.remove('hidden');
+
+        setupInputListeners();
+      } catch (err) {
+        console.error('Quiz Init Error:', err);
+        document.getElementById('error-message').innerText = err.message || 'Failed to load JSON data.';
+        document.getElementById('loader-screen').classList.add('hidden');
+        document.getElementById('error-screen').classList.remove('hidden');
+      }
+    }
+
+    function saveCurrentSessionState() {
+      const input = document.getElementById('guess-input');
+      const session = modeSessions[currentGameMode];
+      if (!session) return;
+
+      session.inputValue = input.value;
+      session.feedbackHtml = document.getElementById('feedback-message').innerHTML;
+    }
+
+    function restoreSessionState() {
+      const session = modeSessions[currentGameMode];
+      if (!session) return;
+
+      // If category session has not started, generate its initial question
+      if (!session.currentQuestion) {
+        nextQuestion(true); // silent start
+        return;
+      }
+
+      document.getElementById('question-counter').innerText = `Question #${session.questionNumber}`;
+      document.getElementById('ability-icon').src = session.currentQuestion.iconUrl;
+
+      const input = document.getElementById('guess-input');
+      input.value = session.inputValue || '';
+      input.disabled = session.isAnswered;
+
+      document.getElementById('submit-btn').disabled = session.isAnswered;
+      document.getElementById('next-btn').disabled = !session.isAnswered;
+      document.getElementById('feedback-message').innerHTML = session.feedbackHtml || '';
+
+      updateActionButtonState();
+      applyImageTransformations();
+    }
+
+    function switchGameMode(mode, isInitial = false) {
+      if (currentGameMode === mode && !isInitial) return;
+
+      if (!isInitial) {
+        saveCurrentSessionState();
+        playSound('click');
+      }
+
+      currentGameMode = mode;
+
+      document.getElementById('mode-hero-btn').classList.toggle('active', mode === 'hero');
+      document.getElementById('mode-ability-btn').classList.toggle('active', mode === 'ability');
+      document.getElementById('mode-special-btn').classList.toggle('active', mode === 'special');
+
+      const badge = document.getElementById('mode-badge');
+      const prompt = document.getElementById('prompt-instruction');
+      const input = document.getElementById('guess-input');
+
+      if (mode === 'hero') {
+        badge.innerHTML = `<i class="fa-solid fa-user mr-1"></i> Guess the Hero`;
+        prompt.innerText = `Type the name of the hero who owns this ability:`;
+        input.placeholder = `e.g. Pudge`;
+      } else if (mode === 'ability') {
+        badge.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Guess the Ability Name`;
+        prompt.innerText = `Type the exact name of this ability:`;
+        input.placeholder = `e.g. Meat Hook`;
+      } else if (mode === 'special') {
+        badge.innerHTML = `<i class="fa-solid fa-dragon mr-1"></i> Creeps & Specials Mode`;
+        prompt.innerText = `Type either the Creep/Unit Name OR Ability Name:`;
+        input.placeholder = `e.g. Harpy, Centaur, or Chain Lightning`;
+      }
+
+      document.getElementById('autocomplete-list').classList.add('hidden');
+      restoreSessionState();
+    }
+
+    function updateActionButtonState() {
+      const input = document.getElementById('guess-input');
+      const btnLabel = document.getElementById('submit-btn-label');
+
+      if (!input.value.trim()) {
+        btnLabel.innerText = 'Skip';
+      } else {
+        btnLabel.innerText = 'Submit';
+      }
+    }
+
+    function handleActionClick() {
+      const input = document.getElementById('guess-input');
+      if (!input.value.trim()) {
+        skipQuestion();
+      } else {
+        submitGuess();
+      }
+    }
+
+    function setupInputListeners() {
+      const input = document.getElementById('guess-input');
+      const dropdown = document.getElementById('autocomplete-list');
+
+      input.addEventListener('input', (e) => {
+        updateActionButtonState();
+
+        const session = modeSessions[currentGameMode];
+        const query = e.target.value.trim().toLowerCase();
+
+        if (!query) {
+          dropdown.classList.add('hidden');
+          return;
+        }
+
+        const matches = session.options.filter(opt => opt && opt.toLowerCase().includes(query));
+
+        if (matches.length === 0) {
+          dropdown.classList.add('hidden');
+          return;
+        }
+
+        let tagLabel = 'Hero';
+        if (currentGameMode === 'ability') tagLabel = 'Ability';
+        if (currentGameMode === 'special') tagLabel = 'Creep/Ability';
+
+        dropdown.innerHTML = matches.map(opt => {
+          const safeOpt = opt.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          return `
+            <div onclick="selectSuggestion('${safeOpt}')" class="px-4 py-2.5 hover:bg-dota-panelBg cursor-pointer flex justify-between items-center transition-colors border-b border-dota-border/30 last:border-0">
+              <span class="text-sm font-semibold text-gray-200">${opt}</span>
+              <span class="text-xs text-dota-gold bg-dota-gold/10 px-2 py-0.5 rounded border border-dota-gold/20 font-mono">${tagLabel}</span>
+            </div>
+          `;
+        }).join('');
+
+        dropdown.classList.remove('hidden');
+      });
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          dropdown.classList.add('hidden');
+          handleActionClick();
+        }
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+          dropdown.classList.add('hidden');
+        }
+      });
+    }
+
+    function selectSuggestion(text) {
+      document.getElementById('guess-input').value = text;
+      updateActionButtonState();
+      document.getElementById('autocomplete-list').classList.add('hidden');
+      submitGuess();
+    }
+
+    function applyImageTransformations() {
+      const imgElement = document.getElementById('ability-icon');
+      if (!imgElement) return;
+
+      const session = modeSessions[currentGameMode];
+
+      if (!hardModeEnabled) {
+        imgElement.style.filter = 'none';
+        imgElement.style.transform = 'none';
+        return;
+      }
+
+      if (session.hardTransformFilter && session.hardTransformMatrix) {
+        imgElement.style.filter = session.hardTransformFilter;
+        imgElement.style.transform = session.hardTransformMatrix;
+        return;
+      }
+
+      const isGrayscale = Math.random() > 0.3;
+      const isInverted = Math.random() > 0.4;
+      const isUpsideDown = Math.random() > 0.5;
+      const isFlippedHorizontally = Math.random() > 0.5;
+
+      let filterStyle = '';
+      if (isGrayscale) filterStyle += 'grayscale(100%) ';
+      if (isInverted) filterStyle += 'invert(100%) ';
+
+      let transformStyle = '';
+      if (isUpsideDown && isFlippedHorizontally) {
+        transformStyle = 'rotate(180deg)';
+      } else if (isUpsideDown) {
+        transformStyle = 'scaleY(-1)';
+      } else if (isFlippedHorizontally) {
+        transformStyle = 'scaleX(-1)';
+      } else {
+        transformStyle = 'rotate(90deg)';
+      }
+
+      session.hardTransformFilter = filterStyle.trim() || 'grayscale(100%)';
+      session.hardTransformMatrix = transformStyle;
+
+      imgElement.style.filter = session.hardTransformFilter;
+      imgElement.style.transform = session.hardTransformMatrix;
+    }
+
+    function nextQuestion(silent = false) {
+      const session = modeSessions[currentGameMode];
+      if (!session || !session.abilityList || session.abilityList.length === 0) return;
+
+      if (!silent) playSound('click');
+
+      session.isAnswered = false;
+      session.questionNumber++;
+      session.inputValue = '';
+      session.feedbackHtml = '';
+      session.hardTransformFilter = '';
+      session.hardTransformMatrix = '';
+
+      document.getElementById('question-counter').innerText = `Question #${session.questionNumber}`;
+      document.getElementById('next-btn').disabled = true;
+      document.getElementById('submit-btn').disabled = false;
+      document.getElementById('guess-input').disabled = false;
+      document.getElementById('guess-input').value = '';
+      updateActionButtonState();
+      document.getElementById('feedback-message').innerHTML = '';
+
+      const randomIndex = Math.floor(Math.random() * session.abilityList.length);
+      session.currentQuestion = session.abilityList[randomIndex];
+
+      const imgElement = document.getElementById('ability-icon');
+      imgElement.src = session.currentQuestion.iconUrl;
+
+      applyImageTransformations();
+
+      document.getElementById('guess-input').focus();
+    }
+
+    function skipQuestion() {
+      const session = modeSessions[currentGameMode];
+      if (!session || session.isAnswered || !session.currentQuestion) return;
+
+      session.isAnswered = true;
+      document.getElementById('guess-input').disabled = true;
+      document.getElementById('submit-btn').disabled = true;
+      document.getElementById('next-btn').disabled = false;
+
+      playSound('wrong');
+      currentStreak = 0;
+
+      let correctAnswerText = session.currentQuestion.abilityName;
+      if (currentGameMode === 'hero') {
+        correctAnswerText = session.currentQuestion.heroName;
+      } else if (currentGameMode === 'special') {
+        const isGeneric = isGenericUnitName(session.currentQuestion.heroName);
+        correctAnswerText = isGeneric ? session.currentQuestion.abilityName : `${session.currentQuestion.heroName} OR ${session.currentQuestion.abilityName}`;
+      }
+
+      const feedbackMsg = document.getElementById('feedback-message');
+      feedbackMsg.innerHTML = `
+        <i class="fa-solid fa-forward text-amber-400 text-lg"></i>
+        <span class="text-amber-400 font-medium">Skipped! Correct answer was <strong class="text-white">${correctAnswerText}</strong></span>
+      `;
+
+      session.feedbackHtml = feedbackMsg.innerHTML;
+      document.getElementById('streak-val').innerText = `${currentStreak} 🔥`;
+    }
+
+    function submitGuess() {
+      const session = modeSessions[currentGameMode];
+      if (!session || session.isAnswered || !session.currentQuestion) return;
+
+      const input = document.getElementById('guess-input');
+      const userGuess = input.value.trim().toLowerCase();
+
+      if (!userGuess) return;
+
+      session.isAnswered = true;
+      input.disabled = true;
+      document.getElementById('submit-btn').disabled = true;
+      document.getElementById('next-btn').disabled = false;
+
+      let isCorrect = false;
+
+      if (currentGameMode === 'hero') {
+        isCorrect = userGuess === session.currentQuestion.heroName.toLowerCase();
+      } else if (currentGameMode === 'ability') {
+        isCorrect = userGuess === session.currentQuestion.abilityName.toLowerCase();
+      } else if (currentGameMode === 'special') {
+        const hName = (session.currentQuestion.heroName || '').toLowerCase();
+        const aName = (session.currentQuestion.abilityName || '').toLowerCase();
+
+        const abilityMatch = userGuess === aName;
+        let unitMatch = false;
+        if (hName && !isGenericUnitName(session.currentQuestion.heroName)) {
+          unitMatch = userGuess === hName || hName.includes(userGuess) || userGuess.includes(hName);
+        }
+
+        isCorrect = abilityMatch || unitMatch;
+      }
+
+      const feedbackMsg = document.getElementById('feedback-message');
+
+      if (isCorrect) {
+        playSound('correct');
+
+        const multiplier = hardModeEnabled ? 2 : 1;
+        score += (100 + (currentStreak * 10)) * multiplier;
+        currentStreak++;
+        if (currentStreak > bestStreak) {
+          bestStreak = currentStreak;
+        }
+
+        const displayName = (!isGenericUnitName(session.currentQuestion.heroName))
+          ? `${session.currentQuestion.heroName} - ${session.currentQuestion.abilityName}`
+          : session.currentQuestion.abilityName;
+
+        feedbackMsg.innerHTML = `
+          <i class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+          <span class="text-emerald-400 font-bold">Correct! ${displayName}</span>
+        `;
+      } else {
+        playSound('wrong');
+        currentStreak = 0;
+
+        let correctAnswerText = session.currentQuestion.abilityName;
+        if (currentGameMode === 'hero') {
+          correctAnswerText = session.currentQuestion.heroName;
+        } else if (currentGameMode === 'special') {
+          const isGeneric = isGenericUnitName(session.currentQuestion.heroName);
+          correctAnswerText = isGeneric ? session.currentQuestion.abilityName : `${session.currentQuestion.heroName} OR ${session.currentQuestion.abilityName}`;
+        }
+
+        feedbackMsg.innerHTML = `
+          <i class="fa-solid fa-circle-xmark text-red-400 text-lg"></i>
+          <span class="text-red-400 font-medium">Wrong! Answer was <strong class="text-white">${correctAnswerText}</strong></span>
+        `;
+      }
+
+      session.feedbackHtml = feedbackMsg.innerHTML;
+
+      document.getElementById('score-val').innerText = score;
+      document.getElementById('streak-val').innerText = `${currentStreak} 🔥`;
+      document.getElementById('best-streak-val').innerText = bestStreak;
+    }
+
+    function handleImageError(img) {
+      img.onerror = null;
+      img.src = 'https://placehold.co/150x150/1e232d/d4af37?text=Dota+2+Ability';
+    }
+
+    window.onload = function() {
+      initQuiz();
+    };
+  </script>
+</body>
+</html>
